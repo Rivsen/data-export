@@ -1,0 +1,132 @@
+#!/usr/bin/env php
+<?php
+namespace Mobile
+{
+
+    set_time_limit(0);
+
+    require "../vendor/autoload.php";
+
+    use Symfony\Component\Console\Input\InputInterface;
+    use Symfony\Component\Console\Input\InputArgument;
+    use Symfony\Component\Console\Input\InputOption;
+    use Symfony\Component\Console\Output\OutputInterface;
+    use Symfony\Component\Console\Command\Command as sfCommand;
+    use Goodby\CSV\Export\Standard\ExporterConfig;
+    use Goodby\CSV\Export\Standard\CsvFileObject;
+    use Goodby\CSV\Export\Standard\Exporter;
+
+    class command extends sfCommand
+    {
+        protected function configure()
+        {
+            $this
+                ->setName('export:data')
+                ->setDescription('导出数据，可以选择是否格式化成csv格式')
+                ->addArgument(
+                    'tables',
+                    InputArgument::IS_ARRAY,
+                    '输入表名，用空格隔开，可以导出给出表的数据，想查看表列表？试试 --table-list'
+                )
+                ->addOption(
+                    'table-list',
+                    null,
+                    InputOption::VALUE_NONE,
+                    '输出数据库表列表'
+                )
+                ->addOption(
+                    'csv',
+                    null,
+                    InputOption::VALUE_NONE,
+                    '如果设置了这个，会导出csv格式化的数据'
+                )
+                ->addOption(
+                    'all',
+                    null,
+                    InputOption::VALUE_NONE,
+                    '如果设置了这个，会导出所有的数据'
+                )
+            ;
+        }
+
+        protected function execute( InputInterface $input, OutputInterface $output )
+        {
+            $text = '';
+            $db = \ezcDbInstance::get();
+
+            if( $input->getOption('table-list') ) {
+
+                $rows = $db->prepare( 'show tables;' );
+                $rows->execute();
+                $rows = $rows->fetchAll( \PDO::FETCH_ASSOC );
+
+            } else {
+
+                $rows = $db->prepare( 'select * from ut_visit_log limit 10;' );
+                $rows->execute();
+                $rows = $rows->fetchAll( \PDO::FETCH_ASSOC );
+                $head = array();
+
+                foreach( $rows as $index => $row ) {
+                    if( $index === 0 ) {
+                        $head = array_keys( $row );
+                        //$text .= '\'' . implode( '\',\'', array_keys( $row ) ) . "'\n";
+                    }
+
+                    //$text .= '\'' . implode( '\',\'', array_values( $row ) ) . "'\n";
+                }
+
+                array_unshift( $rows, $head );
+            }
+
+            if( $input->getOption('csv') ) {
+
+                $config = new ExporterConfig();
+                $config
+                    ->setDelimiter(",") // Customize delimiter. Default value is comma(,)
+                    ->setEnclosure("'")  // Customize enclosure. Default value is double quotation(")
+                    ->setEscape("\\")    // Customize escape character. Default value is backslash(\)
+                    ->setToCharset('UTF-8') // Customize file encoding. Default value is null, no converting.
+                    ->setFromCharset('UTF-8') // Customize source encoding. Default value is null.
+                    ->setFileMode(CsvFileObject::FILE_MODE_WRITE) // Customize file mode and choose either write or append. Default value is write ('w'). See fopen() php docs
+                ;
+
+                $exporter = new Exporter( $config );
+                $exporter->export( 'file.csv', $rows );
+                $text = "\n<fg=green;options=bold>Export to file.csv Success!</fg=green;options=bold>\n\n" . $text;
+
+            } else {
+                foreach( $rows as $tr ) {
+                    $text .= '\'<fg=blue>' . implode( '</fg=blue>\',\'<fg=blue>', array_values( $tr ) ) . "</fg=blue>'\n";
+                }
+
+                $text = "\n<fg=green;options=bold>Export Data Success!</fg=green;options=bold>\n\n" . $text;
+            }
+
+
+            $output->writeln( $text );
+        }
+    }
+}
+
+namespace
+{
+    use Symfony\Component\Console\Application;
+    use Symfony\Component\Console\Input\InputInterface;
+    use Symfony\Component\Console\Input\InputArgument;
+    use Symfony\Component\Console\Input\InputOption;
+    use Symfony\Component\Console\Output\OutputInterface;
+    use Mobile\command;
+
+    $app = new Application();
+
+    //setup database
+    $db = ezcDbFactory::create( 'mysql://root@localhost/db?'.PDO::ATTR_PERSISTENT.'=true' );
+    $db->query( 'SET NAMES utf8' );
+    ezcDbInstance::set( $db );
+    unset($db);
+
+    $app->add( new command );
+
+    $app->run();
+}

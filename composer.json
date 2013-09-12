@@ -1,0 +1,9 @@
+{
+  "require": {
+    "pimple/pimple": "dev-master",
+    "symfony/console" : "2.4.*@dev",
+    "symfony/event-dispatcher" : "2.4.*@dev",
+    "zetacomponents/database": "dev-travis",
+    "goodby/csv" : "dev-master"
+  }
+}
